@@ -1,0 +1,6 @@
+data/
+.venv/
+.env
+*.parquet
+spark-warehouse/
+__pycache__/
