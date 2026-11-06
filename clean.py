@@ -25,7 +25,8 @@ RENAME = {
 }
 PRICING_UNITS = ["EA", "ML", "GM"]
 CLASSIFICATIONS = ["G", "B", "B-ANDA", "B-BIO"]
-DATE_FORMAT = "MM/dd/yyyy"
+# Single M/d accept 1 or 2 digits: most dates are "12/18/2024", but 2022 has a week written "1/12/2022"
+DATE_FORMAT = "M/d/yyyy"
 
 
 def normalize_description(col):
@@ -51,10 +52,12 @@ def _date(name):
 def clean_nadac(spark, csv_path, year):
     """Return (clean_df, rejects_df) for one year's NADAC CSV."""
     raw = spark.read.csv(csv_path, header=True)  # no inferSchema: every column arrives as text
-    missing = set(RENAME) - set(raw.columns)
+    # 2022-2023 files write some headers with underscores ("NADAC_Per_Unit"); match either spelling
+    actual = {col.replace("_", " "): col for col in raw.columns}
+    missing = set(RENAME) - set(actual)
     if missing:
         raise ValueError(f"{csv_path} is missing expected columns: {sorted(missing)}")
-    text = raw.select([F.trim(F.col(old)).alias(new) for old, new in RENAME.items()])
+    text = raw.select([F.trim(F.col(f"`{actual[old]}`")).alias(new) for old, new in RENAME.items()])
 
     # Pharmacy Type Indicator is always "C/I" (CMS: other types are "not used at this time"),
     # so it carries no information. Verify that instead of assuming it, then drop it.
@@ -123,41 +126,33 @@ def clean_nadac(spark, csv_path, year):
 
 
 if __name__ == "__main__":
-    YEAR = 2025
-    CSV = f"data/raw/nadac_{YEAR}.csv"
+    # Usage: python clean.py 2022 2023 2024 2025 2026   (no arguments = 2025)
+    YEARS = [int(y) for y in sys.argv[1:]] or [2025]
     CLEAN_DIR, REJECTS_DIR = "data/clean/nadac", "data/rejects/nadac"
 
     spark = (SparkSession.builder.master("local[*]").appName("clean")
-             # rewriting 2025 replaces only the source_year=2025 folder, never other years
+             # rewriting one year replaces only its source_year=YYYY folder, never other years
              .config("spark.sql.sources.partitionOverwriteMode", "dynamic")
              .getOrCreate())
     spark.sparkContext.setLogLevel("ERROR")
 
-    clean, rejects = clean_nadac(spark, CSV, YEAR)
-    rejects = rejects.cache()
-    clean.write.mode("overwrite").partitionBy("source_year").parquet(CLEAN_DIR)
-    rejects.write.mode("overwrite").partitionBy("source_year").parquet(REJECTS_DIR)
+    for year in YEARS:
+        csv_path = f"data/raw/nadac_{year}.csv"
+        clean, rejects = clean_nadac(spark, csv_path, year)
+        rejects = rejects.cache()
+        clean.write.mode("overwrite").partitionBy("source_year").parquet(CLEAN_DIR)
+        rejects.write.mode("overwrite").partitionBy("source_year").parquet(REJECTS_DIR)
 
-    # ---- quality report, read back from disk so it describes what was actually saved ----
-    out = spark.read.parquet(CLEAN_DIR).filter(F.col("source_year") == YEAR).cache()
-    rows_in, rows_out, n_rejects = spark.read.csv(CSV, header=True).count(), out.count(), rejects.count()
-    print(f"\n==== quality report: NADAC {YEAR} ====")
-    print(f"rows in: {rows_in:,} | rows out: {rows_out:,} | rejects: {n_rejects:,} | "
-          f"all accounted for: {rows_in == rows_out + n_rejects}")
-    if n_rejects:
-        rejects.groupBy("reject_reason").count().orderBy(F.desc("count")).show(truncate=False)
-    print("partition folders:", sorted(os.listdir(CLEAN_DIR)))
-    print("NULLs per column:")
-    out.select([F.sum(F.col(col).isNull().cast("int")).alias(col) for col in out.columns]).show(vertical=True)
-    out.select(
-        F.countDistinct("ndc").alias("ndcs"),
-        F.countDistinct("drug_group").alias("drug_groups"),
-        F.min("as_of_date").alias("first_as_of"), F.max("as_of_date").alias("last_as_of"),
-        F.countDistinct("as_of_date").alias("weeks"),
-        F.min("effective_date").alias("earliest_effective"),
-    ).show()
+        # ---- per-year quality report, read back from disk so it describes what was actually saved ----
+        out = spark.read.parquet(CLEAN_DIR).filter(F.col("source_year") == year)
+        rows_in, rows_out, n_rejects = spark.read.csv(csv_path, header=True).count(), out.count(), rejects.count()
+        print(f"\n==== {year}: rows in {rows_in:,} | rows out {rows_out:,} | rejects {n_rejects:,} | "
+              f"all accounted for: {rows_in == rows_out + n_rejects}")
+        if n_rejects:
+            rejects.groupBy("reject_reason").count().orderBy(F.desc("count")).show(truncate=False)
+        nulls = out.select([F.sum(F.col(c).isNull().cast("int")).alias(c) for c in out.columns]).first().asDict()
+        print("  columns with NULLs:", {c: n for c, n in nulls.items() if n} or "none")
+        rejects.unpersist()
 
-    print("5 sample rows:")
-    out.sample(fraction=0.0001, seed=7).limit(5).show(truncate=False)
-    out.printSchema()
+    print("\npartition folders:", sorted(os.listdir(CLEAN_DIR)))
     spark.stop()
