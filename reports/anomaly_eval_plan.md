@@ -61,6 +61,18 @@ Every detector gives each event a score; higher means more suspicious. On the `t
 almost perfectly, so the real test is `pos_relative` (moves big for *that* drug but not big in absolute terms)
 and keeping expected events out of the top N.
 
+## Decisions after 8a (applied from step 8b, in `evaluate.py`)
+
+- **Reverted spikes are scored on ALL years and are descriptive only:** the test split has a single one. We report
+  each spike's percentile rank among all real events (median, how many in the top 1% and top 5%).
+- **Detectors are judged mainly on expected-event false flags@N and the manual top-20 review.** Recall and
+  average precision are supporting numbers.
+- **Clusters:** events with the same published week and the same `pct_change` rounded to 0.1 count as one
+  cluster. The cluster's score is its highest member's score. A cluster is positive if any member is, negative if
+  none is positive and at least one is negative. Every metric is reported for events and for clusters. Rounding also
+  merges unrelated small moves, so negative cluster counts are approximate.
+- Ranking pool: real events only (`mix_only` is known at publication, so a detector may skip those events).
+
 Caveat: `pos_relative` is itself defined by "size compared with the group's own past", so a detector that scores
 exactly that ratio will look very good on it. Detectors should be judged on all metrics together, and the manual
 top-20 review is the check against "grading our own homework".
