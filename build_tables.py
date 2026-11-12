@@ -10,7 +10,7 @@ from pathlib import Path
 os.environ["PYSPARK_PYTHON"] = sys.executable
 from pyspark.sql import SparkSession
 
-TABLES = ["ndc_dim", "group_dim", "group_weekly"]  # in dependency order: later queries read earlier tables
+TABLES = ["ndc_dim", "group_dim", "group_weekly", "price_events"]  # dependency order: later read earlier
 
 spark = (SparkSession.builder.master("local[*]").appName("build_tables")
          .config("spark.driver.memory", "4g")
