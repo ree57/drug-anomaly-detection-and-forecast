@@ -1,0 +1,66 @@
+# Step 8a: anomaly definition and evaluation plan
+
+Built by `anomaly_eval.py` (+ `sql/eval_events.sql`) into `data/eval/eval_events/`: one row per row of
+`price_events`. Counts and examples are printed by the script; they are not copied here so they can't go stale.
+
+## What we call an anomaly
+
+A **real** price change of a drug group that is **unusual for that group's own history and its class**
+(generic vs brand), and is **not an expected, scheduled event**. Two types:
+
+- **Level shift:** the price moves and stays near the new level.
+- **Reverting spike:** the price moves and returns to the old level within 4 weeks.
+
+Not anomalies: `mix_only` events (the median moved only because NDCs joined or left the group), January brand
+list-price increases, and small moves inside the group's normal range.
+
+We have **no ground-truth labels**, so the labels below are **proxies**. Positives use the future (`outcome_*`)
+to say what a move turned out to be. That is fine for grading, but a detector must never see it.
+
+## Categories (column `category`, first matching rule wins; `is_pos_*` / `is_neg_*` flags can overlap)
+
+| Category | Rule | Uses the future? |
+|---|---|---|
+| `excluded_mix_only` | `mix_only` | no |
+| `pos_big_spike` | \|pct_change\| > 50% and `outcome_reverted` | yes |
+| `pos_big_shift` | \|pct_change\| > 50%, not reverted, 8 weeks later closer to the new price than the old | yes |
+| `pos_relative` | not a brand January increase, at least 6 earlier real changes, \|pct_change\| ≥ 10% **and** ≥ 5 × the group's 95th percentile of its *earlier* \|changes\|, 8 weeks later closer to the new price | yes (persistence) |
+| `big_unclear` | \|pct_change\| > 50% but outcome unknown yet or mixed: not scored | yes |
+| `neg_january_list_increase` | brand, effective in January, +1% to +20%, within 0.1 points of a whole % | no |
+| `neg_normal_move` | at least 6 earlier real changes, \|pct_change\| ≤ the group's 75th percentile of earlier \|changes\| and < 10% | no |
+| `unlabelled` | everything else | none |
+
+Notes:
+- `pos_relative` excludes **every** brand January increase, not only the round ones, so a list-price increase
+  that doesn't happen to be round (Otezla's +7.4% in 2022) can never count as a positive.
+- `after_gap` events are kept and keep their flag.
+- `prior_*` columns use a window that ends one row **before** the event: past information only.
+- `split`: `train` = published before 2025, `test` = 2025–2026. Detectors are tuned on `train` and scored on `test`.
+
+Named test cases (`test_case`, `test_case_expect`): isosorbide 20 mg, prucalopride 2 mg and phenobarbital 16.2 mg
+moves over 50% should be **flagged**; Otezla 30 mg January increases should **not** be.
+
+## Metrics (each reported separately for `pos_big_shift`, `pos_big_spike`, `pos_relative`)
+
+Every detector gives each event a score; higher means more suspicious. On the `test` split:
+
+1. **Recall@N:** the share of a positive type that lands in the detector's top N flags (N = 100, 500, 1,000).
+   "If an analyst only checks N alerts, how many real anomalies do they see?"
+2. **Expected-event false flags@N:** how many `neg_january_list_increase` and `neg_normal_move` events are in the
+   top N. These are alerts we know are noise.
+3. **Known-positive share@N:** the share of the top N that are known positives. This is a lower bound on
+   precision, because `unlabelled` events may be real anomalies too.
+4. **Average precision per positive type:** one number summarising ranking quality over the labelled events only
+   (positives of that type vs negatives), so it doesn't depend on picking N.
+5. **Named test cases:** pass/fail. The `flag` events must rank in the top 1% of scores, and Otezla's January
+   increases must stay out of the top 10%.
+6. **Manual review of the top 20:** read each flag and call it real level shift, real spike, expected event,
+   or data issue. This catches what the proxy labels can't.
+
+**Baseline every detector must beat: rank by \|pct_change\|.** By construction it catches the >50% positives
+almost perfectly, so the real test is `pos_relative` (moves big for *that* drug but not big in absolute terms)
+and keeping expected events out of the top N.
+
+Caveat: `pos_relative` is itself defined by "size compared with the group's own past", so a detector that scores
+exactly that ratio will look very good on it. Detectors should be judged on all metrics together, and the manual
+top-20 review is the check against "grading our own homework".
