@@ -1,0 +1,196 @@
+{
+  "csv_rows": {
+    "2022": 1315703,
+    "2023": 1376395,
+    "2024": 1497925,
+    "2025": 1608416,
+    "2026": 1328578
+  },
+  "clean_rows": {
+    "2025": 1608416,
+    "2024": 1497925,
+    "2026": 1328578,
+    "2023": 1376395,
+    "2022": 1315703
+  },
+  "rejects": 0,
+  "overview": {
+    "rows": 7127017,
+    "ndcs": 42542,
+    "weeks": 253,
+    "first_week": "2022-01-05",
+    "last_week": "2026-11-04"
+  },
+  "groups": 7594,
+  "group_weekly_rows": 1394111,
+  "week_gaps": 0,
+  "weeks_in_two_files": 0,
+  "not_wednesday": 0,
+  "duplicate_ndc_weeks": 0,
+  "rows_in_group_weekly": 7127017,
+  "group_key": {
+    "multi_ndc_group_weeks": 845934,
+    "share_one_price": "0.87841",
+    "share_one_price_no_code5": "0.99180",
+    "share_rows_code5": 0.18564541097628923
+  },
+  "reworded_ndcs": 296,
+  "tier_share": "0.07378",
+  "events": {
+    "n": 249898,
+    "mix_only": 0.0015166187804624286,
+    "after_gap": 0.003057247356921624,
+    "n_mix_only": 379,
+    "n_after_gap": 764
+  },
+  "lag": {
+    "share_0": "0.98185",
+    "share_1_14": "0.01580",
+    "share_over_14": "0.00117",
+    "share_negative": "0.00119",
+    "n_over_90": 76,
+    "n_over_90_codes_4_5": 69
+  },
+  "lag_brand_increases": {
+    "median_days": 7.0,
+    "share_backdated": "0.75024",
+    "n": 5189
+  },
+  "share_group_weeks_changed": 0.18023435702555396,
+  "by_kind": {
+    "generic": {
+      "kind": "generic",
+      "events": 207533,
+      "groups_with_events": 5141,
+      "median_abs_pct": 3.5088,
+      "share_within_5pct": "0.60314",
+      "share_up": "0.48422",
+      "median_weeks_between": 4.0
+    },
+    "brand": {
+      "kind": "brand",
+      "events": 41986,
+      "groups_with_events": 2186,
+      "median_abs_pct": 0.0653,
+      "share_within_5pct": "0.94674",
+      "share_up": "0.51748",
+      "median_weeks_between": 4.0
+    }
+  },
+  "january": {
+    "generic": {
+      "kind": "generic",
+      "increases": 80181,
+      "share_january": 0.0813160224990958
+    },
+    "brand": {
+      "kind": "brand",
+      "increases": 5189,
+      "share_january": 0.6633262671034882
+    }
+  },
+  "big_moves": {
+    "n": 1206,
+    "reverted": 24,
+    "persisted_2pct": 337,
+    "with_8w_price": 1192,
+    "closer_to_new_8w": 870
+  },
+  "big_moves_mix_only": {
+    "n": 59,
+    "total": 1265
+  },
+  "otezla_increases": [
+    {
+      "effective_date": "2022-01-26",
+      "published_week": "2022-02-02",
+      "old_price": 63.88346,
+      "new_price": 68.61084,
+      "pct_change": 7.4,
+      "is_january": true,
+      "publication_lag_days": 7
+    },
+    {
+      "effective_date": "2022-07-01",
+      "published_week": "2022-07-13",
+      "old_price": 68.61084,
+      "new_price": 70.2575,
+      "pct_change": 2.4,
+      "is_january": false,
+      "publication_lag_days": 12
+    },
+    {
+      "effective_date": "2023-01-04",
+      "published_week": "2023-01-11",
+      "old_price": 70.2575,
+      "new_price": 74.4027,
+      "pct_change": 5.9,
+      "is_january": true,
+      "publication_lag_days": 7
+    },
+    {
+      "effective_date": "2024-01-05",
+      "published_week": "2024-01-17",
+      "old_price": 74.4027,
+      "new_price": 78.12284,
+      "pct_change": 5.0,
+      "is_january": true,
+      "publication_lag_days": 12
+    },
+    {
+      "effective_date": "2024-06-27",
+      "published_week": "2024-07-10",
+      "old_price": 78.17879,
+      "new_price": 80.52415,
+      "pct_change": 3.0,
+      "is_january": false,
+      "publication_lag_days": 13
+    },
+    {
+      "effective_date": "2025-01-08",
+      "published_week": "2025-01-15",
+      "old_price": 80.63733,
+      "new_price": 86.28194,
+      "pct_change": 7.0,
+      "is_january": true,
+      "publication_lag_days": 7
+    },
+    {
+      "effective_date": "2026-01-07",
+      "published_week": "2026-01-14",
+      "old_price": 86.38028,
+      "new_price": 90.6993,
+      "pct_change": 5.0,
+      "is_january": true,
+      "publication_lag_days": 7
+    }
+  ],
+  "example_events": {
+    "isosorbide": {
+      "published_week": "2025-05-21",
+      "old_price": 0.19212,
+      "new_price": 3.35316,
+      "pct_change": 1645.3467,
+      "outcome_price_4w": 3.35316,
+      "outcome_price_8w": 3.35316,
+      "held_weeks": 61
+    },
+    "prucalopride": {
+      "published_week": "2025-10-22",
+      "old_price": 13.16018,
+      "new_price": 0.75973,
+      "pct_change": -94.2271,
+      "outcome_price_4w": 0.75973,
+      "outcome_price_8w": 0.75973,
+      "held_weeks": 26
+    },
+    "phenobarbital": {
+      "published_week": "2024-06-19",
+      "old_price": 0.06887,
+      "new_price": 0.17174,
+      "pct_change": 149.3684,
+      "outcome_price_4w": 0.06803,
+      "outcome_price_8w": 0.06803
+    }
+  }
+}
