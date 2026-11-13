@@ -19,18 +19,19 @@ import sys
 os.environ["PYSPARK_PYTHON"] = sys.executable
 from pyspark.sql import SparkSession
 
-RUN_NAME = "8c"
+RUN_NAME = "8d"
 DETECTORS = {
     "baseline_abs_pct":  "SELECT drug_group, published_week, ABS(pct_change) AS score FROM ev",
     "zscore_B_seasonal": "SELECT drug_group, published_week, score_b AS score FROM zs",
     "hybrid":            "SELECT drug_group, published_week, score_hybrid AS score FROM hy",
     "if_small":          "SELECT drug_group, published_week, score_if_small AS score FROM iforest",
     "if_full":           "SELECT drug_group, published_week, score_if_full AS score FROM iforest",
+    "final":             "SELECT drug_group, published_week, score_final AS score FROM fin",   # tier, then hybrid
 }
-TOP_FAMILIES_FOR = ["if_full", "if_small"]
+TOP_FAMILIES_FOR = ["final"]
 TOP_N = [100, 500, 1000]
 SHORT = {"baseline_abs_pct": "base", "zscore_A_plain": "zA", "zscore_B_seasonal": "zB", "hybrid": "hyb",
-         "if_small": "ifS", "if_full": "ifF"}   # short column names in the printed tables
+         "if_small": "ifS", "if_full": "ifF", "final": "fin"}   # short column names in the printed tables
 FAMILY_PCT_MIN = 30   # only moves this big (%) can join a family through an identical % change ...
 FAMILY_PCT_DECIMALS = 2   # ... rounded to this many decimals (10% / 0.1 chained 2,000+ unrelated generics)
 
@@ -41,6 +42,7 @@ spark.read.parquet("data/eval/eval_events").createOrReplaceTempView("ev")
 spark.read.parquet("data/eval/scores_zscore").createOrReplaceTempView("zs")
 spark.read.parquet("data/eval/scores_hybrid").createOrReplaceTempView("hy")
 spark.read.parquet("data/eval/scores_iforest").createOrReplaceTempView("iforest")
+spark.read.parquet("data/eval/scores_final").createOrReplaceTempView("fin")
 
 
 def header(title):
@@ -206,6 +208,48 @@ q(f"""SELECT test_case, test_case_expect AS expect, published_week, ROUND(pct_ch
       FROM scored WHERE test_case_expect IS NOT NULL
       GROUP BY test_case, test_case_expect, published_week, pct_change ORDER BY test_case, published_week""")
 
+header("final detector, test split: what each confidence level contains (events; families = family's best tier)")
+spark.sql("""
+    SELECT s.*, f.confidence, COALESCE(f.medium_source, '') AS source,
+           CASE f.confidence WHEN 'high' THEN 2 WHEN 'medium' THEN 1 ELSE 0 END AS tier
+    FROM scored s JOIN fin f USING (drug_group, published_week)
+    WHERE s.detector = 'final' AND s.split = 'test'""").createOrReplaceTempView("ev_c")
+spark.sql("""
+    SELECT family_id, MAX(tier) AS tier, BOOL_OR(is_pos_any) AS pos_any,
+           BOOL_AND(is_neg_january_list_increase OR is_neg_normal_move OR is_neg_hard_january
+                    OR is_neg_hard_volatile) AS all_neg
+    FROM ev_c GROUP BY family_id""").createOrReplaceTempView("fam_c")
+conf = spark.sql("""
+    SELECT confidence, source, COUNT(*) AS events,
+           SUM(CAST(is_pos_big_shift AS INT)) AS big_shift, SUM(CAST(is_pos_relative AS INT)) AS relative,
+           SUM(CAST(is_pos_big_spike AS INT)) AS spike,
+           SUM(CAST(is_neg_hard_january AS INT)) AS hard_jan, SUM(CAST(is_neg_hard_volatile AS INT)) AS hard_vol,
+           SUM(CAST(is_neg_january_list_increase AS INT)) AS jan_all, SUM(CAST(is_neg_normal_move AS INT)) AS normal,
+           SUM(CAST(category = 'big_unclear' AS INT)) AS big_unclear, SUM(CAST(category = 'unlabelled' AS INT)) AS unlabelled,
+           ROUND(AVG(CAST(is_pos_any AS INT)), 3) AS known_pos_share
+    FROM ev_c GROUP BY confidence, source ORDER BY MAX(tier) DESC, source""")
+conf.show(truncate=False)
+q("""SELECT CASE tier WHEN 2 THEN 'high' WHEN 1 THEN 'medium' ELSE 'none' END AS family_best_confidence,
+            COUNT(*) AS families, SUM(CAST(pos_any AS INT)) AS with_known_positive,
+            SUM(CAST(all_neg AS INT)) AS all_known_negative
+     FROM fam_c GROUP BY tier ORDER BY tier DESC""")
+
+header("final detector, test split: alert families per published week (a family's level = its best member)")
+weekly = spark.sql("""
+    WITH fam_week AS (SELECT family_id, MIN(published_week) AS week, MAX(tier) AS tier FROM ev_c GROUP BY family_id),
+    weeks AS (SELECT DISTINCT published_week AS week FROM ev WHERE split = 'test'),
+    per_week AS (
+        SELECT w.week,
+               COUNT(CASE WHEN f.tier = 2 THEN 1 END)  AS high,
+               COUNT(CASE WHEN f.tier = 1 THEN 1 END)  AS medium,
+               COUNT(CASE WHEN f.tier >= 1 THEN 1 END) AS high_or_medium
+        FROM weeks w LEFT JOIN fam_week f ON f.week = w.week GROUP BY w.week)
+    SELECT level, COUNT(*) AS weeks, PERCENTILE(n, 0.5) AS median_per_week, ROUND(AVG(n), 2) AS mean_per_week,
+           MAX(n) AS max_per_week, SUM(CASE WHEN n = 0 THEN 1 ELSE 0 END) AS weeks_with_zero
+    FROM per_week LATERAL VIEW STACK(3, 'high', high, 'medium', medium, 'high_or_medium', high_or_medium) s AS level, n
+    GROUP BY level ORDER BY level""")
+weekly.show(truncate=False)
+
 for top_det in TOP_FAMILIES_FOR:
     header(f"top 20 families, test split: {top_det} (with the same family's rank under other detectors)")
     other_ranks = ", ".join(f"MAX(CASE WHEN u.detector = '{d}' THEN u.rnk END) AS `rank_{SHORT.get(d, d)}`"
@@ -234,6 +278,12 @@ with open(f"reports/metrics_{RUN_NAME}.csv", "w", newline="", encoding="utf-8") 
     for r in ap.collect():
         for m in ["ap_shift_easy", "ap_rel_easy", "ap_shift_hard", "ap_rel_hard"]:
             w.writerow(["test", r["unit"], r["detector"], m, r[m]])
+    for r in conf.collect():
+        for m in ["events", "big_shift", "relative", "hard_jan", "hard_vol", "jan_all", "normal", "known_pos_share"]:
+            w.writerow(["test", "event", f"final_{r['confidence']}{'_' + r['source'] if r['source'] else ''}", m, r[m]])
+    for r in weekly.collect():
+        for m in ["median_per_week", "mean_per_week", "max_per_week", "weeks_with_zero"]:
+            w.writerow(["test", "family", f"final_alerts_{r['level']}", m, r[m]])
     for r in spikes.collect():
         for m in ["median_top_pct", "in_top_1pct", "in_top_5pct"]:
             w.writerow(["all", "event", r["detector"], f"spike_{m}", r[m]])
