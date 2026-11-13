@@ -19,15 +19,18 @@ import sys
 os.environ["PYSPARK_PYTHON"] = sys.executable
 from pyspark.sql import SparkSession
 
-RUN_NAME = "8b2"
+RUN_NAME = "8c"
 DETECTORS = {
     "baseline_abs_pct":  "SELECT drug_group, published_week, ABS(pct_change) AS score FROM ev",
-    "zscore_A_plain":    "SELECT drug_group, published_week, score_a AS score FROM zs",
     "zscore_B_seasonal": "SELECT drug_group, published_week, score_b AS score FROM zs",
     "hybrid":            "SELECT drug_group, published_week, score_hybrid AS score FROM hy",
+    "if_small":          "SELECT drug_group, published_week, score_if_small AS score FROM iforest",
+    "if_full":           "SELECT drug_group, published_week, score_if_full AS score FROM iforest",
 }
-TOP_FAMILIES_FOR = "hybrid"
+TOP_FAMILIES_FOR = ["if_full", "if_small"]
 TOP_N = [100, 500, 1000]
+SHORT = {"baseline_abs_pct": "base", "zscore_A_plain": "zA", "zscore_B_seasonal": "zB", "hybrid": "hyb",
+         "if_small": "ifS", "if_full": "ifF"}   # short column names in the printed tables
 FAMILY_PCT_MIN = 30   # only moves this big (%) can join a family through an identical % change ...
 FAMILY_PCT_DECIMALS = 2   # ... rounded to this many decimals (10% / 0.1 chained 2,000+ unrelated generics)
 
@@ -37,6 +40,7 @@ spark.sparkContext.setLogLevel("ERROR")
 spark.read.parquet("data/eval/eval_events").createOrReplaceTempView("ev")
 spark.read.parquet("data/eval/scores_zscore").createOrReplaceTempView("zs")
 spark.read.parquet("data/eval/scores_hybrid").createOrReplaceTempView("hy")
+spark.read.parquet("data/eval/scores_iforest").createOrReplaceTempView("iforest")
 
 
 def header(title):
@@ -69,6 +73,8 @@ def build_families():
         print(f"family pass {i}: {changed:,} labels changed")
         if changed == 0:
             break
+    fam.select("drug_group", "published_week", fam.label.alias("family_id")) \
+       .write.mode("overwrite").parquet("data/eval/families")   # reused by explain_iforest.py
     fam.createOrReplaceTempView("families")
 
 
@@ -191,31 +197,31 @@ spikes = spark.sql("""
 spikes.show(truncate=False)
 
 header("named test cases: top_pct among all years (pass: 'flag' in top 1%, 'no_flag' outside top 10%)")
-pivot = ",\n".join(f"MAX(CASE WHEN detector = '{d}' THEN top_pct_all END) AS `{d}`" for d in DETECTORS)
+pivot = ",\n".join(f"MAX(CASE WHEN detector = '{d}' THEN top_pct_all END) AS `{SHORT.get(d, d)}`" for d in DETECTORS)
 passes = ",\n".join(
     f"""MAX(CASE WHEN detector = '{d}' THEN CASE WHEN test_case_expect = 'flag' THEN top_pct_all <= 1
-                                           ELSE top_pct_all > 10 END END) AS `ok_{d.split('_')[0]}{d.split('_')[1][:1] if '_' in d else ''}`"""
+                                           ELSE top_pct_all > 10 END END) AS `ok_{SHORT.get(d, d)}`"""
     for d in DETECTORS)
 q(f"""SELECT test_case, test_case_expect AS expect, published_week, ROUND(pct_change, 1) AS pct, {pivot}, {passes}
       FROM scored WHERE test_case_expect IS NOT NULL
       GROUP BY test_case, test_case_expect, published_week, pct_change ORDER BY test_case, published_week""")
 
-header(f"top 20 families, test split: {TOP_FAMILIES_FOR} (with the same family's rank under other detectors)")
-other_ranks = ", ".join(
-    f"MAX(CASE WHEN u.detector = '{d}' THEN u.rnk END) AS `rank_{d.split('_')[0]}{d.split('_')[1][:1] if '_' in d else ''}`"
-    for d in DETECTORS if d != TOP_FAMILIES_FOR)
-q(f"""WITH top AS (SELECT unit_id, rnk FROM units WHERE detector = '{TOP_FAMILIES_FOR}' AND unit = 'family' AND rnk <= 20),
-      members AS (
-          SELECT s.family_id, COUNT(*) AS n,
-                 MIN(s.published_week) AS week,
-                 MAX_BY(s.drug_group, s.score)                   AS top_member,
-                 MAX_BY(ROUND(s.pct_change, 1), s.score)         AS top_pct,
-                 CONCAT_WS(',', ARRAY_SORT(COLLECT_SET(s.category))) AS categories
-          FROM scored s WHERE s.detector = '{TOP_FAMILIES_FOR}' AND s.split = 'test' GROUP BY s.family_id)
-      SELECT t.rnk AS rank, m.week, m.n, m.top_member, m.top_pct, m.categories, {other_ranks}
-      FROM top t JOIN members m ON m.family_id = t.unit_id
-      JOIN units u ON u.unit_id = t.unit_id AND u.unit = 'family'
-      GROUP BY t.rnk, m.week, m.n, m.top_member, m.top_pct, m.categories ORDER BY t.rnk""")
+for top_det in TOP_FAMILIES_FOR:
+    header(f"top 20 families, test split: {top_det} (with the same family's rank under other detectors)")
+    other_ranks = ", ".join(f"MAX(CASE WHEN u.detector = '{d}' THEN u.rnk END) AS `rank_{SHORT.get(d, d)}`"
+                            for d in DETECTORS if d != top_det)
+    q(f"""WITH top AS (SELECT unit_id, rnk FROM units WHERE detector = '{top_det}' AND unit = 'family' AND rnk <= 20),
+          members AS (
+              SELECT s.family_id, COUNT(*) AS n,
+                     MIN(s.published_week) AS week,
+                     MAX_BY(s.drug_group, s.score)                   AS top_member,
+                     MAX_BY(ROUND(s.pct_change, 1), s.score)         AS top_pct,
+                     CONCAT_WS(',', ARRAY_SORT(COLLECT_SET(s.category))) AS categories
+              FROM scored s WHERE s.detector = '{top_det}' AND s.split = 'test' GROUP BY s.family_id)
+          SELECT t.rnk AS rank, m.week, m.n, m.top_member, m.top_pct, m.categories, {other_ranks}
+          FROM top t JOIN members m ON m.family_id = t.unit_id
+          JOIN units u ON u.unit_id = t.unit_id AND u.unit = 'family'
+          GROUP BY t.rnk, m.week, m.n, m.top_member, m.top_pct, m.categories ORDER BY t.rnk""")
 
 os.makedirs("reports", exist_ok=True)
 with open(f"reports/metrics_{RUN_NAME}.csv", "w", newline="", encoding="utf-8") as f:

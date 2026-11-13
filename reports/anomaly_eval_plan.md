@@ -97,6 +97,15 @@ and keeping expected events out of the top N.
 - **Hybrid detector** (`detect_hybrid.py`): the average of two percentiles against the train period (2022–24),
   |ln(new/old)| and variant B's |z|. A tie-breaker below 1e-6 orders events above the reference maximum.
 
+## Step 8c additions
+
+- **Isolation Forest** (`detect_iforest.py`): fitted on 2022–24 real events only (200 trees, 256 samples each,
+  random_state 42). Scores all events, but only 2025–26 is out-of-sample. Two versions:
+  - IF-small: |log change|, Variant B z (as sign·ln(1+|z|)), typical past move.
+  - IF-full: 13 publication-time features.
+- `evaluate.py` saves the families to `data/eval/families/`. `explain_iforest.py` compares each top-20 family's
+  features with the training events (`reports/iforest_top20.md`).
+
 Caveat: `pos_relative` is itself defined by "size compared with the group's own past", so a detector that scores
 exactly that ratio will look very good on it. Detectors should be judged on all metrics together, and the manual
 top-20 review is the check against "grading our own homework".

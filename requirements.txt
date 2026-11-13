@@ -1,0 +1,7 @@
+# Python 3.12; Spark also needs Java 21 and (on Windows) winutils + hadoop.dll in %HADOOP_HOME%\bin
+pyspark==4.3.0
+matplotlib==3.11.2
+numpy==2.5.4
+pandas==2.3.3   # PySpark 4.3 supports pandas < 3
+pyarrow==26.0.1
+scikit-learn==1.9.1
