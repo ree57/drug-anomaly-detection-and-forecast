@@ -85,6 +85,16 @@ SELECT
     COALESCE(NOT excluded AND prior_real_changes >= 6 AND abs_pct <= prior_p75_abs_pct AND abs_pct < 10, FALSE)
                                                                                               AS is_neg_normal_move,
 
+    -- HARD negatives (past information only): big in absolute terms, but expected.
+    -- A size-only detector should flag them; a good detector shouldn't.
+    COALESCE(NOT excluded AND is_brand AND is_january AND pct_change BETWEEN 7 AND 20 AND is_round_pct, FALSE)
+                                                                                              AS is_neg_hard_january,
+    -- big for a generic, but no bigger than this drug's own usual changes (not a positive, not > 50%)
+    COALESCE(NOT excluded AND prior_real_changes >= 6 AND abs_pct >= 20 AND abs_pct <= prior_p75_abs_pct
+             AND abs_pct <= 50
+             AND NOT (NOT is_brand_january_increase AND abs_pct >= 10 AND abs_pct >= 5 * prior_p95_abs_pct
+                      AND closer_to_new_8w), FALSE)                                           AS is_neg_hard_volatile,
+
     -- one primary category per event (first matching rule wins)
     CASE
         WHEN mix_only                                                                         THEN 'excluded_mix_only'
@@ -94,6 +104,8 @@ SELECT
         WHEN NOT is_brand_january_increase AND prior_real_changes >= 6 AND abs_pct >= 10
              AND abs_pct >= 5 * prior_p95_abs_pct AND closer_to_new_8w                        THEN 'pos_relative'
         WHEN abs_pct > 50                                                                     THEN 'big_unclear'
+        WHEN is_brand AND is_january AND pct_change BETWEEN 7 AND 20 AND is_round_pct          THEN 'neg_hard_january'
+        WHEN prior_real_changes >= 6 AND abs_pct >= 20 AND abs_pct <= prior_p75_abs_pct       THEN 'neg_hard_volatile'
         WHEN is_brand AND is_january AND pct_change BETWEEN 1 AND 20 AND is_round_pct          THEN 'neg_january_list_increase'
         WHEN prior_real_changes >= 6 AND abs_pct <= prior_p75_abs_pct AND abs_pct < 10        THEN 'neg_normal_move'
         ELSE 'unlabelled'

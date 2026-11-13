@@ -74,6 +74,29 @@ and keeping expected events out of the top N.
   merges unrelated small moves, so negative cluster counts are approximate.
 - Ranking pool: real events only (`mix_only` is known at publication, so a detector may skip those events).
 
+## Step 8b-2 additions
+
+- **Pool:** events whose `category` starts with `excluded_` (mix_only, artefacts) are not ranked. Detectors also
+  drop `artefact_suspect` events from their history.
+- **Hard negatives** (past information only; big in absolute terms but expected):
+  - `neg_hard_january`: a January brand list increase (round %) of +7% to +20%. A subset of
+    `neg_january_list_increase`.
+  - `neg_hard_volatile`: \|change\| between 20% and 50%, no bigger than the group's own 75th percentile of earlier
+    changes (at least 6 earlier changes), and not a positive.
+  - New metrics: hard false flags@N for each type, and average precision with only hard negatives as the
+    negatives.
+- **Families** replace the "same week + rounded %" clusters (`build_families` in `evaluate.py`). Two events of the
+  same week are linked if they share the first word of the description (split on space and '-'), or, for moves of
+  30% or more, the same % change to 2 decimals. Chains of links form one family (iterative smallest-label
+  propagation). A family is positive if any member is, and a known negative only if every member is a known
+  negative.
+  - Tried first: 10% / 1 decimal. Coincidental equal % changes among generics chained 2,112 events into one family.
+  - Known gaps: store-brand prefixes (`FT`, `GNP`, `GS`...) are treated as a name, so a store's many OTC products
+    of one week become one family (largest: 312). Same-company actions under different names (Fiasp vs Tresiba,
+    different %) stay separate.
+- **Hybrid detector** (`detect_hybrid.py`): the average of two percentiles against the train period (2022–24),
+  |ln(new/old)| and variant B's |z|. A tie-breaker below 1e-6 orders events above the reference maximum.
+
 Caveat: `pos_relative` is itself defined by "size compared with the group's own past", so a detector that scores
 exactly that ratio will look very good on it. Detectors should be judged on all metrics together, and the manual
 top-20 review is the check against "grading our own homework".

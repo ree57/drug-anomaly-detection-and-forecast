@@ -63,7 +63,8 @@ q("""SELECT CASE WHEN NOT is_brand THEN 'generic'
 EX_COLS = """drug_group, published_week, old_price, new_price, pct_change, prior_real_changes,
              prior_p95_abs_pct, outcome_price_8w, outcome_reverted, after_gap"""
 for cat in ["pos_big_shift", "pos_big_spike", "pos_relative", "big_unclear",
-            "neg_january_list_increase", "neg_normal_move", "excluded_mix_only", "excluded_artefact", "unlabelled"]:
+            "neg_hard_january", "neg_hard_volatile", "neg_january_list_increase", "neg_normal_move",
+            "excluded_mix_only", "excluded_artefact", "unlabelled"]:
     header(f"3 examples: {cat}")
     # hash order = a fixed but arbitrary pick, so examples aren't only the most extreme ones
     q(f"""SELECT {EX_COLS} FROM ev WHERE category = '{cat}'

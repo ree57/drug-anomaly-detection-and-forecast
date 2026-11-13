@@ -1,6 +1,6 @@
 """Step 8b: Method 1, rolling robust z-score detector, in two variants.
 
-For every real price event (mix_only excluded), x = ln(new_price / old_price) is compared with the
+For every real price event (mix_only and artefact_suspect excluded), x = ln(new_price / old_price) is compared with the
 same group's PREVIOUS real events only:
 
     robust z = (x - median) / max(1.4826 * MAD, SCALE_FLOOR)        score = |z|
@@ -49,7 +49,7 @@ spark.sql("""
            CASE WHEN NOT is_brand THEN 'generic'
                 WHEN is_january THEN 'brand_jan' ELSE 'brand_other' END AS season_class
     FROM price_events
-    WHERE NOT mix_only
+    WHERE NOT mix_only AND NOT artefact_suspect   -- both known at publication: not real price changes
 """).createOrReplaceTempView("real_events")
 
 # 2. each event's own past: the frame ends 1 row BEFORE the event, so the event never sees itself
