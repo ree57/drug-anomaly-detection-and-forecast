@@ -20,7 +20,12 @@ spark.sparkContext.setLogLevel("ERROR")
 # make the clean data queryable from SQL under the name "nadac" (all years at once)
 spark.read.parquet("data/clean/nadac").createOrReplaceTempView("nadac")
 
+# optional: `python build_tables.py price_events` rebuilds only the named tables; the others are read from disk
+only = sys.argv[1:] or TABLES
 for name in TABLES:
+    if name not in only:
+        spark.read.parquet(f"data/tables/{name}").createOrReplaceTempView(name)
+        continue
     start = time.time()
     query = Path(f"sql/{name}.sql").read_text(encoding="utf-8")
     spark.sql(query).write.mode("overwrite").parquet(f"data/tables/{name}")

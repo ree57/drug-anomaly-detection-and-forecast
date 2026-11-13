@@ -63,7 +63,7 @@ q("""SELECT CASE WHEN NOT is_brand THEN 'generic'
 EX_COLS = """drug_group, published_week, old_price, new_price, pct_change, prior_real_changes,
              prior_p95_abs_pct, outcome_price_8w, outcome_reverted, after_gap"""
 for cat in ["pos_big_shift", "pos_big_spike", "pos_relative", "big_unclear",
-            "neg_january_list_increase", "neg_normal_move", "excluded_mix_only", "unlabelled"]:
+            "neg_january_list_increase", "neg_normal_move", "excluded_mix_only", "excluded_artefact", "unlabelled"]:
     header(f"3 examples: {cat}")
     # hash order = a fixed but arbitrary pick, so examples aren't only the most extreme ones
     q(f"""SELECT {EX_COLS} FROM ev WHERE category = '{cat}'
@@ -73,6 +73,29 @@ header("pos_relative: off-cycle brand increases (largest 5)")
 q(f"""SELECT {EX_COLS} FROM ev
       WHERE is_pos_relative AND is_brand AND NOT is_january AND direction = 'up'
       ORDER BY ABS(pct_change) DESC LIMIT 5""")
+
+header("artefact flags: big real moves (|pct_change| > 50%, not mix_only)")
+q("""SELECT COUNT(*) AS big_moves,
+            SUM(CAST(artefact_suspect AS INT))                                   AS artefact_suspect,
+            SUM(CAST(class_changed AS INT))                                      AS class_changed,
+            SUM(CASE WHEN artefact_suspect AND class_changed THEN 1 ELSE 0 END)  AS both,
+            SUM(CASE WHEN is_artefact AND NOT artefact_suspect THEN 1 ELSE 0 END) AS manual_only,
+            SUM(CASE WHEN artefact_suspect AND split = 'test' THEN 1 ELSE 0 END) AS suspect_in_test
+     FROM ev WHERE ABS(pct_change) > 50 AND NOT mix_only""")
+print("all events: artefact_suspect and class_changed")
+q("""SELECT SUM(CAST(artefact_suspect AS INT)) AS artefact_suspect, SUM(CAST(class_changed AS INT)) AS class_changed,
+            SUM(CASE WHEN class_changed AND ABS(pct_change) > 30 THEN 1 ELSE 0 END) AS class_changed_over_30pct
+     FROM ev WHERE NOT mix_only""")
+print("the three reviewed events")
+q("""SELECT drug_group, published_week, ROUND(pct_change, 1) AS pct, matched_ndc_median_change, artefact_suspect,
+            class_changed, category, artefact_reason
+     FROM ev WHERE (drug_group LIKE 'DILANTIN 100 MG CAPSULE|%' AND published_week = DATE'2025-03-19')
+                OR (drug_group LIKE 'SODIUM CHLORIDE 0.9% SOLUTION|ML|%' AND ABS(pct_change) > 50)
+                OR (drug_group LIKE 'CLEMASTINE FUM 2.68 MG TABLET|%' AND published_week = DATE'2026-01-21')""")
+print("largest 10 artefact_suspect big moves")
+q("""SELECT drug_group, published_week, old_price, new_price, ROUND(pct_change, 1) AS pct, matched_ndc_median_change,
+            class_changed, category
+     FROM ev WHERE artefact_suspect AND ABS(pct_change) > 50 ORDER BY ABS(pct_change) DESC LIMIT 10""")
 
 header("named test cases")
 q(f"""SELECT test_case, test_case_expect, category, published_week, old_price, new_price, pct_change,

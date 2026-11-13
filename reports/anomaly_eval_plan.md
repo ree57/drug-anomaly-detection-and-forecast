@@ -22,6 +22,7 @@ to say what a move turned out to be. That is fine for grading, but a detector mu
 | Category | Rule | Uses the future? |
 |---|---|---|
 | `excluded_mix_only` | `mix_only` | no |
+| `excluded_artefact` | `artefact_suspect` (group ≥ 30%, matched NDCs < 5%) or judged an artefact in manual review (`reports/top20_review.md`); reason in `artefact_reason` | no (auto) / review |
 | `pos_big_spike` | \|pct_change\| > 50% and `outcome_reverted` | yes |
 | `pos_big_shift` | \|pct_change\| > 50%, not reverted, 8 weeks later closer to the new price than the old | yes |
 | `pos_relative` | not a brand January increase, at least 6 earlier real changes, \|pct_change\| ≥ 10% **and** ≥ 5 × the group's 95th percentile of its *earlier* \|changes\|, 8 weeks later closer to the new price | yes (persistence) |

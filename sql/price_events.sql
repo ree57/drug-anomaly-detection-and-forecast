@@ -41,9 +41,10 @@ events AS (
 ndc_rows AS (
     -- every clean NDC row, labelled with its canonical group, plus that NDC's OWN previous row
     SELECT
-        d.drug_group, n.ndc, n.as_of_date, n.nadac_per_unit, n.effective_date, n.explanation_codes,
+        d.drug_group, n.ndc, n.as_of_date, n.nadac_per_unit, n.effective_date, n.explanation_codes, n.classification,
         LAG(n.nadac_per_unit) OVER (PARTITION BY n.ndc ORDER BY n.as_of_date) AS ndc_prev_price,
-        LAG(n.as_of_date)     OVER (PARTITION BY n.ndc ORDER BY n.as_of_date) AS ndc_prev_as_of
+        LAG(n.as_of_date)     OVER (PARTITION BY n.ndc ORDER BY n.as_of_date) AS ndc_prev_as_of,
+        LAG(n.classification) OVER (PARTITION BY n.ndc ORDER BY n.as_of_date) AS ndc_prev_class
     FROM nadac AS n
     JOIN ndc_dim AS d ON d.ndc = n.ndc
 ),
@@ -87,11 +88,22 @@ mix AS (
     SELECT
         ev.drug_group, ev.as_of_date,
         COUNT(*)                                                         AS n_ndcs_in_both_weeks,
-        SUM(CASE WHEN r.nadac_per_unit <> r.ndc_prev_price THEN 1 ELSE 0 END) AS n_ndcs_changed
+        SUM(CASE WHEN r.nadac_per_unit <> r.ndc_prev_price THEN 1 ELSE 0 END) AS n_ndcs_changed,
+        -- how much did the SAME NDCs move? (median own-price change in %, NDCs present in both weeks)
+        MEDIAN((r.nadac_per_unit / r.ndc_prev_price - 1) * 100)          AS matched_ndc_median_change
     FROM events AS ev
     JOIN ndc_rows AS r
       ON r.drug_group = ev.drug_group AND r.as_of_date = ev.as_of_date
      AND r.ndc_prev_as_of = ev.prev_published_week          -- this NDC was also there last time
+    GROUP BY ev.drug_group, ev.as_of_date
+),
+
+class_chg AS (
+    -- did any NDC of the group change its classification (G / B / B-ANDA / B-BIO) since its own previous row?
+    SELECT ev.drug_group, ev.as_of_date,
+           MAX(CASE WHEN r.classification <> r.ndc_prev_class THEN 1 ELSE 0 END) = 1 AS class_changed
+    FROM events AS ev
+    JOIN ndc_rows AS r ON r.drug_group = ev.drug_group AND r.as_of_date = ev.as_of_date
     GROUP BY ev.drug_group, ev.as_of_date
 )
 
@@ -120,6 +132,11 @@ SELECT
     ev.weeks_since_prev > 1                                 AS after_gap,
     ev.n_ndcs_priced,
     ev.n_distinct_prices,
+    ROUND(m.matched_ndc_median_change, 4)                   AS matched_ndc_median_change,
+    -- the group moved a lot but the NDCs present in both weeks barely moved: the NDC mix changed, not the price.
+    -- (no NDC in both weeks -> matched change is NULL -> false here; mix_only already covers that case)
+    COALESCE(ABS(ev.pct_change) >= 30 AND ABS(m.matched_ndc_median_change) < 5, FALSE) AS artefact_suspect,
+    COALESCE(cc.class_changed, FALSE)                       AS class_changed,
 
     -- OUTCOMES: future information, for evaluation only. NEVER model inputs (see warning at top).
     -- NULL when that week isn't in the data (the group had a gap, or the data ends too soon).
@@ -141,3 +158,4 @@ JOIN group_dim   AS g ON g.drug_group = ev.drug_group
 JOIN picked_date AS p ON p.drug_group = ev.drug_group AND p.as_of_date = ev.as_of_date
 JOIN codes       AS c ON c.drug_group = ev.drug_group AND c.as_of_date = ev.as_of_date
 LEFT JOIN mix    AS m ON m.drug_group = ev.drug_group AND m.as_of_date = ev.as_of_date
+LEFT JOIN class_chg AS cc ON cc.drug_group = ev.drug_group AND cc.as_of_date = ev.as_of_date
