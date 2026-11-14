@@ -11,7 +11,7 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
-GITHUB_URL = "https://github.com/ree57/Drug-anamoly-detection-and-forecast"
+GITHUB_URL = "https://github.com/ree57/drug-anomaly-detection-and-forecast"
 DATA = Path(__file__).resolve().parent.parent / "dashboard_data"
 MOVE_LABEL = "Chance of moving ≥ 5% (up or down) in the next 12 weeks"
 CONF_TEXT = {"high": "High confidence", "medium": "Medium confidence"}
