@@ -15,7 +15,7 @@ for each drug package (42,542 NDCs over 2022–26). This project turns five year
 - **Pharma pricing and Value & Access teams:** monitoring competitor and generic-entry price moves, e.g. a
   generic launch collapsing a brand's class price.
 
-**Live demo:** _coming soon (Streamlit Community Cloud)_ · Code: this repository
+**Live demo:** [drug-price-monitor.streamlit.app](https://drug-price-monitor.streamlit.app/) (Streamlit Community Cloud; may take a few seconds to wake up) · Code: this repository
 
 | Weekly alerts | Watch list | Drug lookup |
 |---|---|---|
