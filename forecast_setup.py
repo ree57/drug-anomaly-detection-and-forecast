@@ -51,6 +51,10 @@ q("""SELECT split, COUNT(*) AS rows_missing_target_at_t_plus_12
 spark.sql("SELECT * FROM cand WHERE target_status = 'ok'").drop("target_status") \
      .write.mode("overwrite").parquet("data/tables/forecast_dataset")
 spark.read.parquet("data/tables/forecast_dataset").createOrReplaceTempView("fd")
+# Step 11: the newest origins have no t+12 price yet. Saved separately (never trained or evaluated on) so the
+# dashboard can show a "current" watch list. Same features, target columns are NULL.
+spark.sql("SELECT * FROM cand WHERE target_status = 'beyond_data_end'").drop("target_status") \
+     .write.mode("overwrite").parquet("data/tables/forecast_latest")
 
 header("forecast_dataset: rows per split / fold")
 q("""SELECT split, COALESCE(CAST(fold AS STRING), '-') AS fold, COUNT(*) AS rows,

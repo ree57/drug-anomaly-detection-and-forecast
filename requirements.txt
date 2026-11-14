@@ -6,3 +6,4 @@ pandas==2.3.3   # PySpark 4.3 supports pandas < 3
 pyarrow==26.0.1
 scikit-learn==1.9.1
 lightgbm==4.7.0
+streamlit==1.67.0   # dashboard (dashboard/requirements.txt has the deploy-only list)

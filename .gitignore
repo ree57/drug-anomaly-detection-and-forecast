@@ -4,3 +4,4 @@ data/
 *.parquet
 spark-warehouse/
 __pycache__/
+!dashboard_data/*.parquet

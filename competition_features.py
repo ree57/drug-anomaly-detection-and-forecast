@@ -11,7 +11,7 @@
 Note: a labeler is whoever labels the package (manufacturer, repackager or store brand), not always the maker.
 
 Leakage evidence: provenance (latest week read <= origin) and a truncation test on a sample, recomputed in
-pandas from NADAC rows with every week after t deleted. Output: data/tables/forecast_competition/.
+pandas from NADAC rows with every week after t deleted. Output: data/tables/forecast_competition/ (forecast_dataset + forecast_latest origins).
 """
 import os
 import sys
@@ -29,7 +29,10 @@ spark = (SparkSession.builder.master("local[*]").appName("competition_features")
 spark.sparkContext.setLogLevel("ERROR")
 spark.read.parquet("data/clean/nadac").createOrReplaceTempView("nadac")
 spark.read.parquet("data/tables/ndc_dim").createOrReplaceTempView("ndc_dim")
-spark.read.parquet("data/tables/forecast_dataset").createOrReplaceTempView("fd")
+# origins: the forecast dataset plus (Step 11) the newest origins that have no target yet
+spark.sql("""SELECT drug_group, origin_week, origin_wk FROM parquet.`data/tables/forecast_dataset`
+             UNION ALL
+             SELECT drug_group, origin_week, origin_wk FROM parquet.`data/tables/forecast_latest`""").createOrReplaceTempView("fd")
 
 spark.sql("""
     WITH weeks AS (

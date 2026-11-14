@@ -1,0 +1,234 @@
+{
+  "data": {
+    "first_week": "2022-01-05",
+    "last_week": "2026-11-04",
+    "weeks": 253,
+    "drug_groups": 7594,
+    "price_events": 249898,
+    "ndc_rows_note": "CMS NADAC weekly files 2022-2026"
+  },
+  "store_brand_prefixes": [
+    "SM",
+    "FT",
+    "HM",
+    "QC",
+    "GNP",
+    "GS"
+  ],
+  "anomaly_detectors": [
+    {
+      "detector": "Rank by size of change (baseline)",
+      "big_shift_recall_top100": 1.0,
+      "relative_recall_top100": 0.5,
+      "known_positive_share_top100": 0.76,
+      "hard_volatile_flagged_top1000": 82.0,
+      "january_list_increases_flagged_top1000": 0.0,
+      "normal_moves_flagged_top1000": 0.0
+    },
+    {
+      "detector": "Robust z-score (seasonal)",
+      "big_shift_recall_top100": 0.662,
+      "relative_recall_top100": 0.8,
+      "known_positive_share_top100": 0.83,
+      "hard_volatile_flagged_top1000": 3.0,
+      "january_list_increases_flagged_top1000": 7.0,
+      "normal_moves_flagged_top1000": 158.0
+    },
+    {
+      "detector": "Hybrid (size + unusual for this drug)",
+      "big_shift_recall_top100": 0.815,
+      "relative_recall_top100": 0.7,
+      "known_positive_share_top100": 0.84,
+      "hard_volatile_flagged_top1000": 27.0,
+      "january_list_increases_flagged_top1000": 3.0,
+      "normal_moves_flagged_top1000": 0.0
+    },
+    {
+      "detector": "Isolation Forest, 3 features",
+      "big_shift_recall_top100": 0.846,
+      "relative_recall_top100": 0.744,
+      "known_positive_share_top100": 0.88,
+      "hard_volatile_flagged_top1000": 10.0,
+      "january_list_increases_flagged_top1000": 12.0,
+      "normal_moves_flagged_top1000": 245.0
+    },
+    {
+      "detector": "Isolation Forest, 13 features",
+      "big_shift_recall_top100": 0.508,
+      "relative_recall_top100": 0.633,
+      "known_positive_share_top100": 0.65,
+      "hard_volatile_flagged_top1000": 0.0,
+      "january_list_increases_flagged_top1000": 554.0,
+      "normal_moves_flagged_top1000": 64.0
+    },
+    {
+      "detector": "Final: hybrid + IF second opinion",
+      "big_shift_recall_top100": 0.815,
+      "relative_recall_top100": 0.7,
+      "known_positive_share_top100": 0.84,
+      "hard_volatile_flagged_top1000": 27.0,
+      "january_list_increases_flagged_top1000": 3.0,
+      "normal_moves_flagged_top1000": 0.0
+    }
+  ],
+  "alerts_test_period": {
+    "alert_events": 178,
+    "families": 113,
+    "weeks": 97,
+    "weeks_with_alerts": 34,
+    "max_families_per_week": 12
+  },
+  "forecast_regression": [
+    {
+      "model": "Predict no change",
+      "mae": 0.046374,
+      "skill": 0.0,
+      "segment": "all"
+    },
+    {
+      "model": "Predict no change",
+      "mae": 0.061388,
+      "skill": 0.0,
+      "segment": "generic"
+    },
+    {
+      "model": "Predict no change",
+      "mae": 0.009718,
+      "skill": 0.0,
+      "segment": "brand"
+    },
+    {
+      "model": "Drift",
+      "mae": 0.055,
+      "skill": -0.185999,
+      "segment": "all"
+    },
+    {
+      "model": "Drift",
+      "mae": 0.071041,
+      "skill": -0.157243,
+      "segment": "generic"
+    },
+    {
+      "model": "Drift",
+      "mae": 0.015835,
+      "skill": -0.629507,
+      "segment": "brand"
+    },
+    {
+      "model": "Seasonal (brands, January)",
+      "mae": 0.046804,
+      "skill": -0.009273,
+      "segment": "all"
+    },
+    {
+      "model": "Seasonal (brands, January)",
+      "mae": 0.061388,
+      "skill": 0.0,
+      "segment": "generic"
+    },
+    {
+      "model": "Seasonal (brands, January)",
+      "mae": 0.011198,
+      "skill": -0.152289,
+      "segment": "brand"
+    },
+    {
+      "model": "LightGBM",
+      "mae": 0.056405,
+      "skill": -0.216296,
+      "segment": "all"
+    },
+    {
+      "model": "LightGBM",
+      "mae": 0.074592,
+      "skill": -0.215102,
+      "segment": "generic"
+    },
+    {
+      "model": "LightGBM",
+      "mae": 0.011998,
+      "skill": -0.234707,
+      "segment": "brand"
+    }
+  ],
+  "forecast_regression_fix_skill": {
+    "all": -0.167581,
+    "generic": -0.173995,
+    "brand": -0.068661
+  },
+  "move_classifier": [
+    {
+      "model": "Rank by recent volatility",
+      "segment": "all",
+      "roc_auc": 0.778147,
+      "precision_top100": 0.26,
+      "precision_top500": 0.456,
+      "base_rate": 0.28698
+    },
+    {
+      "model": "Classifier (Step 10b)",
+      "segment": "all",
+      "roc_auc": 0.814658,
+      "precision_top100": 0.66,
+      "precision_top500": 0.73,
+      "base_rate": 0.28698
+    },
+    {
+      "model": "Classifier + competition features (used here)",
+      "segment": "all",
+      "roc_auc": 0.816184,
+      "precision_top100": 0.63,
+      "precision_top500": 0.744,
+      "base_rate": 0.28698
+    },
+    {
+      "model": "Rank by recent volatility",
+      "segment": "generic",
+      "roc_auc": 0.707765,
+      "precision_top100": 0.35,
+      "precision_top500": 0.59,
+      "base_rate": 0.386851
+    },
+    {
+      "model": "Classifier (Step 10b)",
+      "segment": "generic",
+      "roc_auc": 0.726786,
+      "precision_top100": 0.66,
+      "precision_top500": 0.73,
+      "base_rate": 0.386851
+    },
+    {
+      "model": "Classifier + competition features (used here)",
+      "segment": "generic",
+      "roc_auc": 0.729153,
+      "precision_top100": 0.63,
+      "precision_top500": 0.744,
+      "base_rate": 0.386851
+    },
+    {
+      "model": "Rank by recent volatility",
+      "segment": "brand",
+      "roc_auc": 0.488287,
+      "precision_top100": 0.02,
+      "precision_top500": 0.064,
+      "base_rate": 0.043143
+    },
+    {
+      "model": "Classifier (Step 10b)",
+      "segment": "brand",
+      "roc_auc": 0.84506,
+      "precision_top100": 0.51,
+      "precision_top500": 0.426,
+      "base_rate": 0.043143
+    },
+    {
+      "model": "Classifier + competition features (used here)",
+      "segment": "brand",
+      "roc_auc": 0.846998,
+      "precision_top100": 0.51,
+      "precision_top500": 0.432,
+      "base_rate": 0.043143
+    }
+  ]
+}
